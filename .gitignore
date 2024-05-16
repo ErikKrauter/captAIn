@@ -1,0 +1,10 @@
+.idea
+data/
+sbatch_log/
+DatasetsAndModels/*
+!DatasetsAndModels/scripts/
+Evaluation/*
+!Evaluation/*.py
+Experiments/
+wandb_cache_dir/
+
