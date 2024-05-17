@@ -13,6 +13,11 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 from pytorch3d.transforms import axis_angle_to_matrix
 
 
+'''
+This class is basically the same as the regular Trajectory Generator, just the this time the objective is 
+to reconstruct the TCP poses instead of the action sequence. Ths Pose Trajectory Generator is used in captAIn later.
+'''
+
 # this function expects the quaternion to be in WXYZ format
 # this format aligns with SAPIEN
 def quaternion_to_axis_angle(quaternions: torch.Tensor) -> torch.Tensor:

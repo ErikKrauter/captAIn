@@ -1,9 +1,8 @@
 .idea
 data/
 sbatch_log/
-DatasetsAndModels/*
-!DatasetsAndModels/scripts/
 Evaluation/*
+Runs/*
 !Evaluation/*.py
 Experiments/
 wandb_cache_dir/

@@ -14,6 +14,10 @@ import time
 import multiprocessing as mp
 
 
+'''
+This script allows to visualize pointclouds, trajectories, and videos of rollouts
+'''
+
 def clip_and_scale_action(action):
     def scale(action, low, high):
         """Clip action to [-1, 1] and scale according to a range [low, high]."""
@@ -112,13 +116,20 @@ class VideoPlayer:
             print(f'Video path is: {video_path}')
             play_video(video_path)
 
+'''
+The different options in the constructor allow you to specify what information to visualize.
+
+In order to visualize the affordances for captAIn, it is required to add the affordances to the action dictionary in the 
+forward pass in captAIn. The forward pass can be found in the following file
+ManiSkill2-Learn/maniskill2_learn/methods/mfrl/vat_sac.py
+'''
 
 class TrajectoryRenderer:
 
     def __init__(self, trajectory_file,
                  visualize_waypoints=True,
                  only_first_waypoint=True,
-                 num_trajectories=100,
+                 num_trajectories=10,
                  render_gt=True,
                  render_predicted_ee_poses=True,
                  render_affordances=True):
@@ -230,7 +241,7 @@ class TrajectoryRenderer:
         self.base_pose = trajectory['infos']['base_pose'][0]
 
     def extract_from_sample_VAT(self, trajectory):
-        self.xyz = trajectory['obs']['xyz'][1]
+        self.xyz = trajectory['obs']['xyz'][0]
         self.affordance = trajectory['infos'].get('affordance', None) if self.render_affordances else None
         # self.affordance = log_scaling(self.affordance)
         self.contact_point_base = trajectory['infos']['init_contact_point_base'][0]
@@ -256,7 +267,11 @@ class TrajectoryRenderer:
 
         if self.num_trajectories > 0:
             # list of 100 trajectories, each 5,5,6 dimensional. For every waypoint its the exact same trajectory
-            self.trajectories = np.array(trajectory['actions']['trajectories'])[0, :, :, :] # for all trajectories take first waypoint -> 100, 5, 6
+            if 'trajectories' in trajectory['actions']:
+                self.trajectories = np.array(trajectory['actions']['trajectories'])[0, :, :, :] # for all trajectories take first waypoint -> 100, 5, 6
+            else:
+                print("trajectories key does not exit")
+                self.num_trajectories = 0
 
         self.contact_normal_world = trajectory['infos']['contact_normal_world'][0]
         self.gripper_up_dir_base = trajectory['infos']['gripper_up_dir'][0]  # z axis
@@ -273,7 +288,7 @@ class TrajectoryRenderer:
                 self.predicted_ee_pose_traj = trajectory['actions']['open_loop_trajectory'][0]
             else:
                 print('No predicted end effector trajectory found')
-                exit()
+                self.render_predicted_ee_poses = False
             if self.predicted_ee_pose_traj.ndim == 1:
                 # meaning its a flat array and not an array of waypoints
                 # this is the case for open_loop_trajectory

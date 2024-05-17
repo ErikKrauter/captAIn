@@ -156,6 +156,8 @@ class TurnFaucetEnv(TurnFaucetBaseEnv):
 
         # model_ids = list(map(str, model_ids))
         model_ids.sort(reverse=True)
+        if '5037' in model_ids:
+            model_ids.remove('5037')
         print(f'model_ids: {model_ids}')
         self.model_ids = model_ids
         self.model_id = None

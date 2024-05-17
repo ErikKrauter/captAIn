@@ -8,6 +8,11 @@ from scipy.spatial.transform import Rotation
 import copy
 from mani_skill2.utils.sapien_utils import vectorize_pose
 
+'''
+Environment used for captAIn. This extends VATTurnFaucetEnv mainly by implementing a bunch of reward fuctions.
+The reward functions were used for testing.
+
+'''
 
 @register_env("ClosedLoop-TurnFaucet-v0", max_episode_steps=200, override=True)
 class ClosedLoopTurnFaucetEnv(VATTurnFaucetEnv):
@@ -118,6 +123,7 @@ class ClosedLoopTurnFaucetEnv(VATTurnFaucetEnv):
 
         return np.array(encoded_features)
 
+    # The main interaction logic is implemented in this function.
     def step(self, input: Union[None, np.ndarray, Dict]):
         #print(f'{os.getpid()}: \t received input: \t {input}')
 
@@ -135,7 +141,7 @@ class ClosedLoopTurnFaucetEnv(VATTurnFaucetEnv):
             target_pose_base = sapien.Pose(target_pos, target_quat)
 
             control_mode = 'pd_base_pose'
-            # we do NOT provide the control_mode as a part of the action dictionary anymore, because strings
+            # we do NOT provide the control_mode as a part of the action dictionary, because strings
             # cause issues in the replay buffer
             self.step_action(dict(action=action, control_mode=control_mode))
             counter = 0

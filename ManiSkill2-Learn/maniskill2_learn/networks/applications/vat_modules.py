@@ -8,6 +8,17 @@ from ..utils import replace_placeholder_with_args, get_kwargs_from_shape, combin
 import torch, torch.nn as nn
 
 
+'''
+The file contains the Affordance Predictor, Trajectory Generator, Trajectory Scorer.
+
+The three architecture share a lot of logic. The VATModelBase class contains all the shared logic.
+
+All the modules use the PointNet++ backbone implemented in maniskill2_learn/networks/backbones/pointnet_2.py
+
+The Trajectory Generator additionally uses the cVAE implementation in maniskill2_learn/networks/backbones/cVAE.py
+
+'''
+
 class VATModelBase(ExtendedModule):
     def __init__(self, backbone_cfg=None, head_cfg=None, mlp_cp_cfg=None, mlp_traj_cfg=None, mlp_task_cfg=None):
         super(VATModelBase, self).__init__()
@@ -132,8 +143,6 @@ class TrajectoryScorer(VATModelBase):
         return torch.sigmoid(score)
 
 
-
-
 @VATMARTNETWORKS.register_module()
 class AffordancePredictor(VATModelBase):
     def __init__(self, backbone_cfg=None, head_cfg=None, mlp_cp_cfg=None, mlp_traj_cfg=None, mlp_task_cfg=None, topk=5):
@@ -173,7 +182,6 @@ class TrajectoryGenerator(VATModelBase):
 
         super(TrajectoryGenerator, self).__init__(backbone_cfg=backbone_cfg, head_cfg=vae_cfg, mlp_cp_cfg=mlp_cp_cfg,
                                                   mlp_task_cfg=mlp_task_cfg, mlp_traj_cfg=mlp_traj_cfg)
-
 
     def sample_trajectories(self, pointcloud, task, contact_point, num_trajectories=100):
         batch_size = pointcloud.shape[0]

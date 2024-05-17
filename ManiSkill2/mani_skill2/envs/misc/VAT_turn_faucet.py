@@ -24,6 +24,22 @@ from mani_skill2.utils.common import np_random, random_choice
 from gymnasium import spaces
 
 
+'''
+Base class for the TurnFaucet environment used with VAT-Mart, captAIn, and also for data collection
+
+This environment defines how the environment is initialized, and what variables are contained in the info dict.
+
+The environment initialization is a crucial step.
+1. The task is sampled, meaning the initial and target angle of the faucet handle are sampled
+2. Based on the task a suitable contact point is sampled, as well as the contact normal, the non-contact point. 
+The non-contact point is later used for data augmentation
+3. Based on the contact point and normal a initial gripper orientation is computed
+4. The gripper is moved to that position using inverse kinematics
+5. Now that the gripper is correctly positioned and oriented, the actual episode begins, i.e. the agent receives
+ observations and starts acting.
+
+The step() function contains all logic of how the agent interacts with the environment and how the environment reacts
+'''
 
 @register_env("VAT-TurnFaucet-v0", max_episode_steps=200, override=True)
 class VATTurnFaucetEnv(TurnFaucetEnv):
@@ -66,6 +82,16 @@ class VATTurnFaucetEnv(TurnFaucetEnv):
         self.error = False
         self.contact_point_offset = contact_point_offset
 
+        # a work around to ensure that the action space has the desired dimension
+        # we want either a 4 dimensional action space, i.e. control x,y,z, yaw of the end effector
+        # or a 6 dimensional action space, i.e. control full pose of the end effector
+        # the original action space is 7 dimensional because it also controls the gripper
+        # we do not care about the gripper, because we dont perform grasps.
+
+        # during construction of the agent in the run_rl.py script (maniskill2_learn/apis/run_rl.py)
+        # the action space is sampled to determine the dimension of the actions. That information is used to
+        # construct the neural networks.
+
         if self.restrict_action_space:
             print('action space is restricted to 4 dim')
             self.action_space = spaces.Box(low=-np.ones(4), high=np.ones(4), dtype=np.float32)
@@ -79,8 +105,7 @@ class VATTurnFaucetEnv(TurnFaucetEnv):
         else:
             self.action_space = spaces.Box(self.action_space.low[:6], self.action_space.high[:6], dtype=np.float32)
 
-    # Here I need to specify how I define success
-    # here I can add all info to the dictionary that I want to output.
+    # defines the success criterion
     def evaluate(self, **kwargs):
         angle_dist = self.target_angle - self.current_angle
         # success either if we are close to target angle, or if angle diff has changed signs meaning we overshot
@@ -122,9 +147,12 @@ class VATTurnFaucetEnv(TurnFaucetEnv):
 
         return action
 
+    # the step function defines the main interaction logic
+    # maniskill and maniskill-learn allow actions to be either arrays or dictionaries
     def step(self, action):
         if isinstance(action, dict):
-            # VAT inference
+            # if action is a dictionary the agent is VAT-Mart
+            # the action dict, also contains the predicted normal at the contact point
             if action['action'].shape[0] != 7:
                 action['action'] = self.expand_dim(action['action'])
         else:
@@ -132,6 +160,11 @@ class VATTurnFaucetEnv(TurnFaucetEnv):
             if action.shape[0] != 7:
                 action = self.expand_dim(action)
 
+        # if it is the very first interaction of the episode, the action given by VAT-Mart defines the first gripper
+        # pose relative to the contact point. This case needs special treatment
+        # first the contact point and normal are extracted from the action, then the gripper pose is constructed
+        # then the gripper is position at that pose. It is important to note that the pose is absolute in Base
+        # coordinates. All other actions afterward are always relative to the previous pose.
         if self._elapsed_steps == 0 and self.mode == 'vat':
 
             action = self.extractAxesAndContactPoint(action)
@@ -139,35 +172,48 @@ class VATTurnFaucetEnv(TurnFaucetEnv):
             target_pos, target_rot = action['action'][0:3], action['action'][3:6]
             target_quat = Rotation.from_rotvec(target_rot).as_quat()[[3, 0, 1, 2]]
             target_pose_base = sapien.Pose(target_pos, target_quat)
+            # important to set the control mode. This control mode tells the low-level controller to treat the pose
+            # as absolute, instead of relative to the last pose.
             action['control_mode'] = 'pd_base_pose'
+            # here the action is passed to the low-level controller
             self.step_action(action)
             counter = 0
+            # the action is repeated until the target is reached.
             while np.linalg.norm(self.agent.robot.pose.inv().transform(self.tcp.pose).p - target_pose_base.p) > 0.005:
                 if counter > 10:
                     break
                 self.step_action(action)
                 counter += 1
         else:
+            # For all subsequent actions, the actions are relative to the last action
+            # no further treatment is needed
             if isinstance(action, dict):
                 action['control_mode'] = self.control_mode_
             self.step_action(action)
 
+        # the action must be a numpy array for all subsequent computations
         if isinstance(action, dict):
             action = action["action"]
 
         self._elapsed_steps += 1
 
+        # save tha action into the array of waypoints
+        # during data collection that array contains the actions data by the rl agent
+        # later that waypoint array is used to train the Trajectory Generator
+        # during VAT-Mart inference, the waypoints array is still populated for visualization purposes
         self.populate_waypoints(action)
 
         obs = self.get_obs()
-        info = self.get_info(obs=obs, action=action)  # this call evaluate()
+        info = self.get_info(obs=obs, action=action)  # this calls evaluate()
         reward = self.get_reward(obs=obs, action=action, info=info)
         terminated = self.get_done(obs=obs, info=info)
         return obs, reward, terminated, False, info
 
+    # executed right before the action is passed to the robot joints
     def _before_control_step(self):
         self.ee_pose_at_base = vectorize_pose(self.agent.robot.pose.inv().transform(self.tcp.pose))
 
+    # we reset the environment. Important to empty the waypoints list again.
     def reset(self, seed=None, options=None):
         out, _ = super().reset(seed=seed, options=options)
         if not self.restrict_action_space:
@@ -176,15 +222,26 @@ class VATTurnFaucetEnv(TurnFaucetEnv):
             self.waypoints = [[0] * (len(self.action_space.sample())) for _ in range(self.num_waypoints)]
         return out, {}
 
+    # the additional info will not be part of the observation that the agent receives.
+    # It will be returned in the info dictionary.
+    # During data collection the info dictionary is filled with information that we need in the dataset for later
+    # training of the perception modules.
+    # Other than that the info dict contains information used for visualization/analysis purposes
     @property
     def additional_info(self):
         out_dict = dict()
         out_dict['init_contact_point_world'] = self.contact_point
         out_dict['init_contact_point_base'] = self.world_to_base_frame(self.contact_point)
-        out_dict['init_contact_point_local'] = self.contact_point_local
+        if self.contact_point_local is not None:
+            out_dict['init_contact_point_local'] = self.contact_point_local
         out_dict['non_contact_point_world'] = self.non_contact_point
         out_dict['non_contact_point_base'] = self.world_to_base_frame(self.non_contact_point)
-        out_dict['non_contact_point_local'] = self.non_contact_point_local
+        # the local coordinates of the non-contact point are only needed for visualization of the data set
+        # of the affordance predictor. During inference the variable is none and should not be included into the
+        # observation, because it leads to issue when saving the trajectory into an h5 file.
+        if self.non_contact_point_local is not None:
+            out_dict['non_contact_point_local'] = self.non_contact_point_local
+        # whether the non-contact point is on the faucet handle or not. Needed for data augmentation and visualization
         out_dict['non_contact_on_movable_part'] = self.on_target_link
         out_dict['contact_normal_world'] = self.contact_normal
         out_dict['gripper_forward_dir'] = self.gripper_x  # world and base coordinates are the same here, because base frame is not rotated
@@ -193,14 +250,18 @@ class VATTurnFaucetEnv(TurnFaucetEnv):
         out_dict['target_angle'] = self.target_angle
         out_dict['current_angle'] = self.current_angle
         out_dict['init_angle'] = self.init_angle
-        out_dict['action_mode'] = 1 if self.action_mode=='pull' else 0
+        out_dict['action_mode'] = 1 if self.action_mode=='pull' else 0  # cannot use strings, the repay buffer complains
         out_dict['ee_pose_at_base'] = self.ee_pose_at_base  # this is tcp pose before action
         out_dict['base_pose'] = vectorize_pose(self.agent.robot.pose)
         out_dict['tcp_pose'] = vectorize_pose(self.tcp.pose) # this is tcp pose after action
         out_dict['target_link_pose'] = vectorize_pose(self.target_link.pose)
         out_dict['waypoints'] = np.hstack(self.waypoints)  # the waypoints are in end effector coordinates space!
         out_dict['model_id'] = int(self.model_id)
-        # out_dict['pointcloud'] the point cloud is added through the VATInfoWrapper
+
+        # The pointcloud is not added at this point in time. The pointcloud is added in the VATInfoWrapper
+        # First the pointcloud is constructed from the camera images and added to the observations
+        # the VATInfoWrapper removes the pointcloud from the observation and appends it to the info dict
+        # out_dict['pointcloud']
         return out_dict
 
     def _compute_distance(self):
@@ -292,15 +353,13 @@ class VATTurnFaucetEnv(TurnFaucetEnv):
             ret = to_world_transformation_matrix[:3, :3] @ point + to_world_transformation_matrix[:3, 3]
         return ret
 
+    # This is part of the observation that the agent receives from the environment
     def _get_obs_extra(self) -> OrderedDict:
+        # during data collection agent the following values are passed as observations
         if self.mode == 'rl':
             obs = OrderedDict(
                 target_link_qpos=self.current_angle,
-                # i want this to be a signed distance to let the robot learn in which direction he needs to spin the handle
                 dist_to_target=self.target_angle - self.current_angle,
-                # this is redundant because the information is in the sign of target angle diff
-                # clockwise=1 if self.init_angle > self.target_angle else 0,
-                # i want this to be a signed distance to let the robot learn in which direction he needs to spin the handle
                 target_angle_diff=self.target_angle - self.init_angle,
                 task=self.target_angle,
                 gripper_pos=self.world_to_base_frame(self.initial_tcp_pose.p),
@@ -311,22 +370,23 @@ class VATTurnFaucetEnv(TurnFaucetEnv):
                 up=self.world_to_base_frame(self.gripper_z, dir=True),
                 forward=self.world_to_base_frame(self.gripper_x, dir=True),
                 left=self.world_to_base_frame(self.gripper_y, dir=True),
-                joint_origin=self.world_to_base_frame(np.array([self.joint_origin[0], self.joint_origin[1], self.contact_point[2]])), # in VAT z coordinate is  taken from contact point  # state_RL.extend(state_joint_origins)
-                # these two are not part of VAT observations
-                tcp_pose=vectorize_pose(self.tcp.pose),  # this is needed for the ManiSkill2-Learn Observation wrapper for coordinate transformations into ee frame
-                target_link_pos=self.world_to_base_frame(self.target_link_pos),  # this is needed to tell the robot what faucet to manipulate if we have two handles
-
-                # Added those observations later
-                model_id=(int(self.model_id)-5000)/100,  # I normalize the model id so that the numbers are smaller!
+                joint_origin=self.world_to_base_frame(np.array([self.joint_origin[0], self.joint_origin[1], self.contact_point[2]])),
+                # this is needed for the ManiSkill2-Learn Observation wrapper for coordinate transformations into ee frame
+                tcp_pose=vectorize_pose(self.tcp.pose),
+                # this is needed to tell the robot what faucet to manipulate if we have two handles
+                target_link_pos=self.world_to_base_frame(self.target_link_pos),
+                # I normalize the model id so that the numbers are smaller!
+                # else it leads to really bad training performance
+                model_id=(int(self.model_id)-5000)/100,
             )
+        # during inference with VAT-Mart we do not use any privileged states in the obseravtions
         elif self.mode == 'vat':
             # ELAPSED_STEPS MUST BE THE LAST ITEM IN THE DICTIONARY!
             # TASK MUST BE THE SECOND LAST ITEM IN THE DICTIONARY!
             obs = OrderedDict(task=self.target_angle - self.init_angle, elapsed_steps=self.elapsed_steps)
         else:
             raise NotImplementedError
-        # self.custom_print("outputting obs")
-        # self.logger.info(f"{self.rank}: outputting obs")
+
         return obs
 
     # we use Trimesh functionality to accomplish the task of sampling a contact point and its normal
@@ -345,6 +405,8 @@ class VATTurnFaucetEnv(TurnFaucetEnv):
         min_y = min(self.target_link_pcd[:, 1])
         z_threshold = 0.4 * max_z  # the larger the threshold the further the contact points will be to the tip of handle
 
+        # this makes sure that the contact point is far enough from the axis of rotation, to avoid collisions
+        # between the gripper and the faucet
         if self.model_id == '5005':
             z_threshold = 0.65 * max_z
         elif self.model_id == '5052':
@@ -372,11 +434,9 @@ class VATTurnFaucetEnv(TurnFaucetEnv):
 
         for point, normal in zip(self.target_link_pcd, normals):
 
-            # I only want contact points that are at least 1/3 away from the 'stem' of the lever
-            # i.e. I prefer points towards the end of the lever
             if point[2] < z_threshold:
                 # we only want to add the point if its not at the bottom of the handle (this part is technically 'inside' the faucet)
-                if (point[1] - min_y) < 0.02:#np.dot(normal, np.array([0, -1, 0])) > np.cos(np.deg2rad(45)):
+                if (point[1] - min_y) < 0.02:  # np.dot(normal, np.array([0, -1, 0])) > np.cos(np.deg2rad(45)):
                     pass
                 else:
                     unfavorable_contact_points.append(point)
@@ -391,6 +451,7 @@ class VATTurnFaucetEnv(TurnFaucetEnv):
             if normal[0] * center_vector[0] > 0:
                 # the current point is on the inside of the handle. We need to skip this point
                 #print('skipping')
+                # instead of skipping we simply invert the normal. This also works.
                 normal = -1 * normal
 
             # which face of the lever is facing the robot depends on the rotation angle of the lever itself
@@ -467,7 +528,6 @@ class VATTurnFaucetEnv(TurnFaucetEnv):
         # the transform_matrix below equates to:
         # R_const = [[0,0,-1],[-1,0,0],[0,1,0]], R_z_phi = [[cos(phi),0,sin(phi)],[0,1,0],[-sin(phi),0,cos(phi)]]
         # transform_matrix[:3,:3] = R_const @ R_z_phi
-        # phi - self.init_angle
         self.contact_point_local = contact_point
         self.contact_point = target_to_world[:3, :3] @ contact_point + target_to_world[:3, 3]
         self.contact_normal = target_to_world[:3, :3] @ contact_normal
@@ -491,12 +551,12 @@ class VATTurnFaucetEnv(TurnFaucetEnv):
 
         return True
 
-        # for debugging
-        #visualize_mesh(self.target_link_mesh, self.target_link_pcd)
-        #visualize_mesh(self.target_link_mesh, self.front_points, self.front_normals, self.back_points, self.back_normals)
-        #visualize_facets(self.target_link_mesh, self.target_link_pcd, self.front_points, self.back_points)
+        # for debugging / visualization. This is super helpful to understand what the mesh and sampled points looks like
+        # visualize_mesh(self.target_link_mesh, self.target_link_pcd)
+        # visualize_mesh(self.target_link_mesh, self.front_points, self.front_normals, self.back_points, self.back_normals)
+        # visualize_facets(self.target_link_mesh, self.target_link_pcd, self.front_points, self.back_points)
 
-    #  first sample a contact point on the faucets handle
+    # first sample a contact point on the faucets handle
     # then construct the grippers pose based on the contact point, the normal of the contact point
     # and the z direction of the gripper
     # note: all vectors and points must be in global frame, i.e. world coordinates
@@ -506,6 +566,10 @@ class VATTurnFaucetEnv(TurnFaucetEnv):
         # right is y
         # I want the normal direction of the contact point to align with the x direction of the gripper
         # the z direction of the gripper should point opposite to the global z direction
+
+        # This while loop makes sure that we keep on sampling contact points until we find a suitable one
+        # for some faucet models the suitable area of interaction is very small, wherefore several attempts might
+        # be needed
         success = False
         counter = 0
         while not success:
@@ -523,16 +587,8 @@ class VATTurnFaucetEnv(TurnFaucetEnv):
 
             counter += 1
 
-        # I want gripper x to be a bit more random to have more variety in the trajectories
-        self.gripper_x = -self.contact_normal if self.action_mode=='push' else self.contact_normal  # normal is in global coordinates
-        #self.gripper_x = -self.contact_normal if not reverse else self.contact_normal  # normal is in global coordinates
-        '''direction = -self.contact_normal if self.action_mode=='push' else self.contact_normal  # normal is in global coordinates
-        gripper_x = np.random.randn(3).astype(np.float32)
-        gripper_x /= np.linalg.norm(gripper_x)
-        while abs(np.dot(gripper_x, direction)) < 0.87:  # 0.87 -> 29.5 degrees
-            gripper_x = np.random.randn(3).astype(np.float32)
-            gripper_x /= np.linalg.norm(gripper_x)
-        self.gripper_x = gripper_x'''
+        # normal is in global coordinates
+        self.gripper_x = -self.contact_normal if self.action_mode=='push' else self.contact_normal
         self.gripper_x = self.gripper_x / np.linalg.norm(self.gripper_x)
         z = np.array([0, 0, -1])  # gripper z axis points in negative global z direction
         while abs(np.dot(self.gripper_x, z)) > 0.99:  # just to make sure that z is sufficiently perpendicular
@@ -546,15 +602,10 @@ class VATTurnFaucetEnv(TurnFaucetEnv):
         self.gripper_z = self.gripper_z / np.linalg.norm(self.gripper_z)
 
         T = np.eye(4)
-        # this sets the orientation of the gripper to the neutral orientation
-        # this means: global x points in local x direction, global y points in negative local y, global z
-        # points in negative local z
-        # x = np.array([1, 0, 0])
-        # y = np.array([0, -1, 0])
-        # z = np.array([0, 0, -1])
-        # T[:3, :3] = np.stack([x, y, z], axis=1)  # gripper orientation in global coordinate system
-        T[:3, :3] = np.stack([self.gripper_x, self.gripper_y, self.gripper_z], axis=1)  # gripper orientation in global coordinate system
-        T[:3, 3] = self.contact_point + self.contact_point_offset * self.contact_normal   # contact point is in global coordinates
+        # gripper orientation in global coordinate system
+        T[:3, :3] = np.stack([self.gripper_x, self.gripper_y, self.gripper_z], axis=1)
+        # contact point is in global coordinates
+        T[:3, 3] = self.contact_point + self.contact_point_offset * self.contact_normal
 
         return T
 
@@ -597,6 +648,7 @@ class VATTurnFaucetEnv(TurnFaucetEnv):
             self.custom_print("IK RESULTS IN NONE")
             qpos = np.zeros((7,))
 
+        # this directly sets the gripper pose. We do not use an iterative approach here.
         self.agent.reset(np.hstack([qpos, 0, 0]))  # the last two values are for the gripper fingers
         self.initial_tcp_pose = self.tcp.pose
 
@@ -612,11 +664,15 @@ class VATTurnFaucetEnv(TurnFaucetEnv):
         # this means we sample an initial and a target angle for the faucet
         # based on that we define wheter its a "pulling" or "pushing" task
         super()._initialize_task()
-        # time.sleep(2)  # sleep for two seconds to make sure the robot and the faucet don't collide
         # based on that we sample a suitable contact point on the faucets handle
-        # and construct the gripper coordinate system to be centered an the contact point and align with the normal
+        # and construct the gripper coordinate system
+
+        # during training of the data collection agent, the gripper is position at the sampled contact point
         if self.mode == 'rl':
             self._initialize_training()
+        # during inference with VAT-Mart the initial gripper pose is predicted by the agent itself, so we do NOT
+        # sample a contact point and do NOT position the gripper based on that privileged information
+        # instead the agent decides itself what contact point and initial orientation to use
         elif self.mode == 'vat':
             pass
         else:
@@ -658,9 +714,8 @@ class VATTurnFaucetEnv(TurnFaucetEnv):
         # The angle to go
         self.target_angle_diff = self.target_angle - self.init_angle
 
-    # this function is called to init the pose of the faucet. They rotate it around up axis a bit and
-    # make position a bit random. We do not need that
-    # we only need to shift the faucets z direction up by model_offset
+    # this function is called to init the pose of the faucet.
+    # some randomness can be introduced.
     def _initialize_articulations(self):
         p = np.zeros(3)
 

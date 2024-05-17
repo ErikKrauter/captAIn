@@ -1,0 +1,199 @@
+agent_cfg = dict(
+    type='VAT-SAC',
+    batch_size=128,
+    gamma=0.95,
+    update_coeff=0.005,
+    alpha=0.2,
+    target_update_interval=1,
+    automatic_alpha_tuning=False,
+    shared_backbone=True,
+    detach_actor_feature=True,
+    ignore_dones=False,
+    alpha_optim_cfg=dict(type='Adam', lr=0.0003),
+    actor_cfg=dict(
+        type='ContinuousActor',
+        head_cfg=dict(type='TanhGaussianHead', log_std_bound=[-20, 2]),
+        nn_cfg=dict(
+            type='Visuomotor',
+            visual_nn_cfg=dict(
+                type='PointNet',
+                feat_dim='pcd_all_channel',
+                mlp_spec=[64, 128, 512],
+                feature_transform=[]),
+            mlp_cfg=dict(
+                type='LinearMLP',
+                norm_cfg=None,
+                mlp_spec=['512 + agent_shape', 256, 256, 'action_shape * 2'],
+                inactivated_output=True,
+                zero_init_output=True)),
+        optim_cfg=dict(
+            type='Adam',
+            lr=0.0003,
+            param_cfg=dict({'(.*?)visual_nn(.*?)': None}))),
+    critic_cfg=dict(
+        type='ContinuousCritic',
+        num_heads=2,
+        nn_cfg=dict(
+            type='Visuomotor',
+            visual_nn_cfg=None,
+            mlp_cfg=dict(
+                type='LinearMLP',
+                norm_cfg=None,
+                mlp_spec=['512 + agent_shape + action_shape', 256, 256, 1],
+                inactivated_output=True,
+                zero_init_output=True)),
+        optim_cfg=dict(type='Adam', lr=0.0003)),
+    affordance_predictor_cfg=dict(
+        type='AffordancePredictor',
+        affordance_predictor_checkpoint_path=
+        'Experiments/VAT_RL_ClosedLoop_MultiFaucet3/affordancePredictor/model_29696.ckpt',
+        topk=5,
+        backbone_cfg=dict(
+            type='PointNet2', hparams=dict(feat_dim=128), n_points='n_points'),
+        mlp_cp_cfg=dict(
+            type='LinearMLP',
+            norm_cfg=None,
+            act_cfg=None,
+            bias='auto',
+            mlp_spec=[3, 32],
+            inactivated_output=True,
+            linear_init_cfg=dict(type='xavier_init', gain=1, bias=0)),
+        mlp_task_cfg=dict(
+            type='LinearMLP',
+            norm_cfg=None,
+            act_cfg=None,
+            bias='auto',
+            mlp_spec=[1, 32],
+            inactivated_output=True,
+            linear_init_cfg=dict(type='xavier_init', gain=1, bias=0)),
+        head_cfg=dict(
+            type='LinearMLP',
+            norm_cfg=None,
+            act_cfg=dict(type='LeakyReLU'),
+            bias='auto',
+            mlp_spec=[192, 128, 128, 1],
+            inactivated_output=True,
+            linear_init_cfg=dict(type='xavier_init', gain=1, bias=0))),
+    trajectory_generator_cfg=dict(
+        type='TrajectoryGenerator',
+        trajectory_generator_checkpoint_path=
+        'Experiments/VAT_RL_ClosedLoop_MultiFaucet3/poseTrajectoryGenerator/model_52224.ckpt',
+        backbone_cfg=dict(
+            type='PointNet2', hparams=dict(feat_dim=128), n_points='n_points'),
+        mlp_cp_cfg=dict(
+            type='LinearMLP',
+            norm_cfg=None,
+            act_cfg=None,
+            bias='auto',
+            mlp_spec=[3, 32],
+            inactivated_output=True,
+            linear_init_cfg=dict(type='xavier_init', gain=1, bias=0)),
+        mlp_task_cfg=dict(
+            type='LinearMLP',
+            norm_cfg=None,
+            act_cfg=None,
+            bias='auto',
+            mlp_spec=[1, 32],
+            inactivated_output=True,
+            linear_init_cfg=dict(type='xavier_init', gain=1, bias=0)),
+        mlp_traj_cfg=dict(
+            type='LinearMLP',
+            norm_cfg=None,
+            act_cfg=None,
+            bias='auto',
+            mlp_spec=['trajectory_dim', 128, 128, 128],
+            inactivated_output=True,
+            linear_init_cfg=dict(type='xavier_init', gain=1, bias=0)),
+        vae_cfg=dict(
+            type='CVAE',
+            latent_dim=128,
+            lbd_kl=1,
+            lbd_recon_pos=30,
+            lbd_recon_dir=30,
+            lbd_init_dir=39,
+            encoder_cfg=dict(
+                type='LinearMLP',
+                norm_cfg=None,
+                act_cfg=dict(type='LeakyReLU'),
+                bias='auto',
+                mlp_spec=[320, 128, 128],
+                inactivated_output=True,
+                linear_init_cfg=dict(type='xavier_init', gain=1, bias=0)),
+            decoder_cfg=dict(
+                type='LinearMLP',
+                norm_cfg=None,
+                act_cfg=None,
+                bias='auto',
+                mlp_spec=[320, 512, 256, 'trajectory_dim'],
+                inactivated_output=True,
+                linear_init_cfg=dict(type='xavier_init', gain=1, bias=0)))))
+train_cfg = dict(
+    on_policy=False,
+    total_steps=5000000,
+    warm_steps=0,
+    n_eval=8000,
+    n_checkpoint=100000,
+    n_steps=120,
+    n_updates=4,
+    n_log=3000,
+    print_steps=10,
+    ep_stats_cfg=dict(
+        info_keys_mode=dict(
+            success=[True, 'max', 'mean'],
+            traj_follow_rew=[True, 'mean', 'all'],
+            turn_faucet_rew=[True, 'mean', 'all'],
+            rel_turn_faucet_rew=[True, 'mean', 'all'],
+            contact_distance_rew=[True, 'mean', 'all'])))
+env_cfg = dict(
+    type='gym',
+    env_name='ClosedLoop-TurnFaucet-v0',
+    faucets='faucetTrainingDataSet.txt',
+    max_task_angle_difference=180,
+    min_task_angle_difference=30,
+    obs_mode='pointcloud',
+    ignore_dones=False,
+    use_contact_point_feature=False,
+    use_trajectory_follow_observation=True,
+    use_contact_point_observation=True,
+    use_contact_normal_observation=True,
+    restrict_action_space=False,
+    interpolate=False,
+    num_waypoints=80,
+    control_mode='pd_ee_target_delta_pose',
+    obs_frame='base',
+    n_points=1200,
+    hand_held_cam=False,
+    front_cam=True,
+    back_cam=True,
+    filter_robot_links=False,
+    reward_mode='dense',
+    penalize_step=0.05,
+    distance_penalty=1.0,
+    error_penalty=0.1,
+    use_contact_point_reward=True,
+    use_trajectory_follow_reward=False,
+    trajectory_reward_mode='contouring_reward',
+    use_rotational_distance=True,
+    use_relative_trajectory_reward=True,
+    trajectory_follow_scale_decay=0.0,
+    trajectory_follow_scale=7.0,
+    trajectory_follow_reward_weight=1.0,
+    lag_to_contouring_ration=0.7,
+    curriculum_half_time=0)
+replay_cfg = dict(type='ReplayMemory', capacity=500000)
+rollout_cfg = dict(type='Rollout', num_procs=5, with_info=True)
+eval_cfg = dict(
+    type='DoubleEvaluation',
+    num_procs=5,
+    num=10,
+    use_hidden_state=False,
+    save_traj=False,
+    save_video=False,
+    log_every_step=False,
+    id_faucets='faucetID_HoldOutDataSet.txt',
+    ood_faucets='faucetOOD_HoldOutDataSet.txt',
+    sample_mode='sample')
+work_dir = None
+resume_from = None
+expert_replay_cfg = None
+recent_traj_replay_cfg = None

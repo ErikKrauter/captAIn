@@ -54,7 +54,7 @@ agent_cfg = dict(
     ),
     affordance_predictor_cfg=dict(
         type="AffordancePredictor",
-        affordance_predictor_checkpoint_path='',#'DatasetsAndModels/TrainedModels/VAT_modules/affordancePredictor/model_16384.ckpt',
+        affordance_predictor_checkpoint_path='',
         topk=5,
         backbone_cfg=dict(type="PointNet2", hparams={'feat_dim': 128}, n_points='n_points'),
         mlp_cp_cfg=dict(
@@ -108,7 +108,7 @@ agent_cfg = dict(
     ),
     trajectory_generator_cfg=dict(
         type="TrajectoryGenerator",
-        trajectory_generator_checkpoint_path='',#'DatasetsAndModels/TrainedModels/VAT_modules/poseTrajectoryGenerator/model_final.ckpt',
+        trajectory_generator_checkpoint_path='',
         backbone_cfg=dict(type="PointNet2", hparams={'feat_dim': 128}, n_points='n_points'),
         mlp_cp_cfg=dict(
             # in baseline this is just a linear layer with no activation
@@ -230,7 +230,7 @@ env_cfg = dict(
     # observation related
     obs_mode='pointcloud',
     ignore_dones=False,
-    use_contact_point_feature=True,  # this should only be set to true if the SAC backbone is pointnet++
+    use_contact_point_feature=False,  # this should only be set to true if the SAC backbone is pointnet++
     use_trajectory_follow_observation=True,
     use_contact_point_observation=True,
     use_contact_normal_observation=True,
@@ -242,7 +242,7 @@ env_cfg = dict(
     control_mode='pd_ee_target_delta_pose',
 
     # rendering stuff
-    render_mode='human',
+    # render_mode='human',
     obs_frame='base',
     n_points=1200,
     hand_held_cam=False,
@@ -258,7 +258,7 @@ env_cfg = dict(
     error_penalty=0.1,  # give penalty if IK solver could not find solution
     # reward terms
     use_contact_point_reward=True,
-    use_trajectory_follow_reward=True,
+    use_trajectory_follow_reward=False,
     # everything related to trajectory following
     # mean_position,mean_position_closest_waypoints,
     # track_direction, track_position, contouring_reward
@@ -271,6 +271,10 @@ env_cfg = dict(
     lag_to_contouring_ration=0.7,
 
     curriculum_half_time=0,
+
+    # for continual learning we randomize the initial pose of the faucet and the physical parameters of the handle
+    randomize_physical_properties=True,
+    randomize_initial_faucet_pose=True
 
 )
 
@@ -290,7 +294,7 @@ recent_traj_replay_cfg = dict(
 
 rollout_cfg = dict(
     type="Rollout",
-    num_procs=1,
+    num_procs=10,
     with_info=True,
 )
 

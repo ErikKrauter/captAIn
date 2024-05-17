@@ -50,7 +50,7 @@ agent_cfg = dict(
     ),
     affordance_predictor_cfg=dict(
         type="AffordancePredictor",
-        affordance_predictor_checkpoint_path='DatasetsAndModels/TrainedModels/VAT_modules/affordancePredictor/model_16384.ckpt',
+        affordance_predictor_checkpoint_path='DatasetsAndModels/captAIn_Model/AffordancePredictor_Model/model_29696.ckpt',
         topk=5,
         backbone_cfg=dict(type="PointNet2", hparams={'feat_dim': 128}, n_points='n_points'),
         mlp_cp_cfg=dict(
@@ -102,7 +102,7 @@ agent_cfg = dict(
     ),
     trajectory_generator_cfg=dict(
         type="TrajectoryGenerator",
-        trajectory_generator_checkpoint_path='DatasetsAndModels/TrainedModels/VAT_modules/poseTrajectoryGenerator/model_final.ckpt',
+        trajectory_generator_checkpoint_path='DatasetsAndModels/captAIn_Model/TrajectoryGenerator_Model/model_52224.ckpt',
         backbone_cfg=dict(type="PointNet2", hparams={'feat_dim': 128}, n_points='n_points'),
         mlp_cp_cfg=dict(
             # in baseline this is just a linear layer with no activation

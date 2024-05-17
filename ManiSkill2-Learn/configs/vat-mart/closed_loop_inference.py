@@ -50,7 +50,7 @@ agent_cfg = dict(
     ),
     affordance_predictor_cfg=dict(
         type="AffordancePredictor",
-        affordance_predictor_checkpoint_path='',#'DatasetsAndModels/TrainedModels/VAT_modules/affordancePredictor/model_16384.ckpt',
+        affordance_predictor_checkpoint_path='',
         topk=5,
         backbone_cfg=dict(type="PointNet2", hparams={'feat_dim': 128}, n_points='n_points'),
         mlp_cp_cfg=dict(
@@ -102,7 +102,7 @@ agent_cfg = dict(
     ),
     trajectory_generator_cfg=dict(
         type="TrajectoryGenerator",
-        trajectory_generator_checkpoint_path='',#'DatasetsAndModels/TrainedModels/VAT_modules/poseTrajectoryGenerator/model_final.ckpt',
+        trajectory_generator_checkpoint_path='',
         backbone_cfg=dict(type="PointNet2", hparams={'feat_dim': 128}, n_points='n_points'),
         mlp_cp_cfg=dict(
             # in baseline this is just a linear layer with no activation
@@ -200,7 +200,7 @@ env_cfg = dict(
     # observation related
     obs_mode='pointcloud',
     ignore_dones=False,
-    use_contact_point_feature=True,  # this should only be set to true if the SAC backbone is pointnet++
+    use_contact_point_feature=False,  # this should only be set to true if the SAC backbone is pointnet++
     use_trajectory_follow_observation=True,
     use_contact_point_observation=True,
     use_contact_normal_observation=True,
@@ -217,7 +217,7 @@ env_cfg = dict(
     n_points=1200,
     hand_held_cam=False,
     front_cam=True,
-    back_cam=False,
+    back_cam=True,
     filter_robot_links=False,  # if set to true only the gripper is contained in the point cloud
 
     # reward related
@@ -228,7 +228,7 @@ env_cfg = dict(
     error_penalty=0.1,  # give penalty if IK solver could not find solution
     # reward terms
     use_contact_point_reward=True,
-    use_trajectory_follow_reward=True,
+    use_trajectory_follow_reward=False,
     # everything related to trajectory following
     # mean_position,mean_position_closest_waypoints,
     # track_direction, track_position, contouring_reward
@@ -248,11 +248,11 @@ env_cfg = dict(
 
 eval_cfg = dict(
     type="Evaluation",
-    num_procs=10,   # uploading videos to wandb only works when using one process.
-    num=300,
+    num_procs=5,   # uploading videos to wandb only works when using one process.
+    num=100,
     use_hidden_state=False,
     save_traj=True,
-    save_video=False,
+    save_video=True,
     log_every_step=False,
     augment_dataset=False,
     only_save_success_traj=False,

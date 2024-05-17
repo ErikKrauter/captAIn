@@ -18,6 +18,11 @@ from maniskill2_learn.utils.torch import masked_average, masked_max, ExtendedMod
 from maniskill2_learn.networks.backbones.Pointnet2_PyTorch.pointnet2_ops_lib.pointnet2_ops.pointnet2_modules import PointnetSAModule, PointnetFPModule
 from maniskill2_learn.utils.meta import get_logger, get_world_rank
 
+'''
+
+This is the PointNet++ backbone used in all the perception modules.
+
+'''
 
 @BACKBONES.register_module(name='PointNet2')
 class PointNet2(ExtendedModule):

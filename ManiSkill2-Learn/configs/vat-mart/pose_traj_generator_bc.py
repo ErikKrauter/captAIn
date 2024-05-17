@@ -120,7 +120,7 @@ replay_cfg=dict(
     num_procs=5,
     keys=["obs", "actions", "dones", "episode_dones", "infos"],
     buffer_filenames=[
-                "DatasetsAndModels/RLTrajectories/RL_NonRandomizedDirection/TrainDataset2/test/trajectory.h5"
+                "DatasetsAndModels/PathToTrainTrajectoryFile/trajectory.h5"
     ])
 
 
@@ -137,6 +137,6 @@ eval_cfg = dict(
         num_procs=5,
         keys=["obs", "actions", "dones", "episode_dones", "infos"],
         buffer_filenames=[
-            "DatasetsAndModels/RLTrajectories/RL_NonRandomizedDirection/TrainDataset2/test/trajectory.h5"
+            "DatasetsAndModels/PathToEvalTrajectoryFile/trajectory.h5"
         ]),
 )

@@ -69,6 +69,26 @@ def matrix_to_axis_angle(matrix: torch.Tensor) -> torch.Tensor:
     """
     return quaternion_to_axis_angle(matrix_to_quaternion(matrix))
 
+'''
+
+This is captAIn. The working title was VAT-SAC...
+
+The main intuition behind captAIn:
+The architecture consists of the Perception Module and the Interaction Policy. The Perception Module contains two
+sub-modules, namely the Affordance Predictor and the Trajectory Generator. 
+The Affordance Predictor takes as input the Pointcloud and the task and predicts an affordance score for every point.
+The point with the highest score is picked as the contact point. 
+The Trajectory generator takes as input the pointcloud, task, and contact point and samples a single trajectory.
+The trajectory consists of the initial orientation of the TCP and a sequence of TCP poses.
+The intitial TCP orientation combined with the contact point form the initial TCP pose, in absolute coordinates.
+The sequence of TCP poses, however, is in relative coordinates (relative to preceding TCP pose in sequence)
+
+The very first observation from the environment is passed through the perception module. The output is used to drive the
+robot to the predicted initial TCP pose. 
+All subsequent interactions with the environment are handled by the ineraction policy. The interaction policy is trained
+using soft actor-critic.
+'''
+
 @MFRL.register_module(name='VAT-SAC')
 class VAT_SAC(BaseAgent):
     def __init__(
@@ -98,6 +118,7 @@ class VAT_SAC(BaseAgent):
     ):
         super(VAT_SAC, self).__init__(**kwargs)
 
+        # constructing the perception module
         self.perception = VAT_SAC_Perception(affordance_predictor_cfg,
                                              trajectory_generator_cfg,
                                              batch_size=perception_batch_size,
@@ -423,6 +444,15 @@ class VAT_SAC(BaseAgent):
         # Concatenate the parts together: before the insertion point, zeros, and the last column
         return torch.cat([left, zeros_to_insert, last_column], dim=1)
 
+    # The forward function contains the logic for environment interaction
+    # ManiSkill uses vectorized environments. This means the agent interacts with multiple environments at the same time
+    # The environment observations are concatenated in the batch dimension. The agent predicts a seperate action for
+    # every environment.
+    # This is done just to accelerate the training process.
+    # Unfortunately, I could not make it work properly. For some reason processing a batch of observations did not lead
+    # to the same results as processing each observation individually. There is some underlying issue, I could not find
+    # So instead, the forward function loops over every environment observation and invokes the forward_single function
+    # The actions are then organized into a single dictionary.
     @no_grad
     def forward(self, obs, **kwargs):
         n_envs = obs['state'].shape[0]
@@ -448,14 +478,15 @@ class VAT_SAC(BaseAgent):
         return action
 
 
+    # This function performs the actual forward pass through the networks
     def forward_single(self, obs, index, **kwargs):
 
         # getting all observations from environments that were just reset, i.e. elapsed step == 0
         # for those we need special treatment
-        # the very first step in the actions needs to be done by VAT
+        # the very first step in the actions needs to be done by perception module
 
         elapsed_steps = obs['state'][:, -1]
-        # if there are no environments going through their first step, we dont need to compute the VAT approach
+        # if there are no environments going through their first step, we dont need to compute the perception approach
         if elapsed_steps == 0:
             pointcloud = obs['xyz']  # num_env, 1200, 3
             task = obs['state'][:, -2].view(1, -1)
@@ -492,8 +523,9 @@ class VAT_SAC(BaseAgent):
             self.contact_point_feature_shape = contact_point_feature.shape[1]
             cp_feature_full = contact_point_feature
 
-            # fuse together the actions from SAC and VAT
-            # for all environments that go through their first step, we take the actions from VAT, for the rest we keep the actions from SAC
+            # fuse together the actions from SAC and perception module
+            # for all environments that go through their first step, we take the actions from perception module,
+            # for the rest we keep the actions from SAC
             action = initial_waypoint.clone()
         else:
             # if its not the first step, then SAC is going to compute the action
@@ -511,7 +543,6 @@ class VAT_SAC(BaseAgent):
             cp_feature_full = torch.full((1, self.contact_point_feature_shape), dummy_value, dtype=torch.float32, device=action.device)
             affordances = torch.full((1, 1200, 1), dummy_value, dtype=torch.float32, device=action.device)
 
-
         # we must pass the action as a dictionary in order to be able to give the environment the reconstructed
         # trajectory and the normal
         # Both those entities will be added to the observations, in the case that the environment is going through its first step
@@ -523,6 +554,8 @@ class VAT_SAC(BaseAgent):
         traj_out = recon_traj_full.detach().cpu().numpy()
         normal_out = normal_full.cpu().numpy()
         cp_feature_out = cp_feature_full.cpu().numpy()
+        # output predicted affordance map too, if you want to visualize the affordance later
+        # the affordance map will automatically be inside of the replay buffer if its part of the action
         affordances_out = affordances.cpu().numpy()
 
         return dict(action=action_out, open_loop_trajectory=traj_out, normal=normal_out, contact_point_feature=cp_feature_out) #, affordance=affordances_out)

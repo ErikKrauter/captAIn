@@ -8,6 +8,28 @@ from mani_skill2.utils.sapien_utils import vectorize_pose
 from scipy.spatial.transform import Rotation
 from mani_skill2.utils.common import np_random, random_choice
 
+'''
+This environment is used for Direct Data Collection. Direct Data Collection, means that we do not need to train
+a RL agent to learn to solve the task of turning the faucet. Instead a dataset of successful interaction is collected
+directly. This class contains all the logic for this direct data collection.
+
+The class inherits from VATTurnFaucetEnv, to access the logic of sampling contact points and positioning the gripper
+
+It is important to note, that despite the fact that we do not actually need an agent to interact with the environment
+in order to collect the data set, we still have to define some dummy agent in order to select actions and receive
+observations. The entire ManiSkill framework is built around the notion of an agent interacting with the environment.
+
+1. during initialization, an initial faucet angle, target angle and contact point, gripper pose are selected
+   this step relies on the logic already implemented in VATTurnFaucetEnv
+        
+2. The environment receives some random action, We dont care about it. Instead the faucet is rotated 'manually' by delta_phi
+   delta_phi being abs(target_angle-init_angle)/num_waypoints
+
+3. compute new gripper pose based on new contact point and contact normal coordinates
+4. check if pose is feasible by solving inverse kinematics
+5. actually move the tcp to the pose
+'''
+
 @register_env("DataCollection-TurnFaucet-v0", max_episode_steps=200, override=True)
 class DataCollectionTurnFaucetEnv(VATTurnFaucetEnv):
 
@@ -17,28 +39,28 @@ class DataCollectionTurnFaucetEnv(VATTurnFaucetEnv):
         self.delta_angle = 0
         self.contact_normal_local = None
 
+    # This is the interaction loop. It contains the entire logic.
     def step(self, action):
         truncated = False
-        # 1. during initialization of the environment I pick an initial faucet angle, target angle and contact point
-        # I also construct the initial gripper pose
-        #   # this is already in place
-        # 2. I receive some random action, I dont care about it. Instead I rotate the faucet 'manually' by delta_phi
-        #   # delta_phi being abs(target_angle-init_angle)/num_waypoints
+
         self.rotateFaucet()
         point, normal = None, None
         # point, normal = self.transformContactPoint()
-        # 3. compute new Gripper pose based on new contact point and contact normal
+
+        # 3. compute new gripper pose based on new contact point and contact normal coordinate
         pose_in_base_coordinates = self.constructGripperPose(point, normal)
         # Rotate the faucet back and see if the gripper can move it instead
         self.rotateFaucet(back=True)
 
         # construct action from the pose
-        action = -1*np.ones(7)  # 7 because I also need to control the gripper
+        action = -1*np.ones(7)  # 7 because low level controller expects 7 dim
         action[:3] = pose_in_base_coordinates.p
+        # the orientation of the gripper remains fixed throughout the interaction
+        # this results in natural looking trajectories
         quat = self.initial_tcp_pose.q
-        #action[3:6] = Rotation.from_quat(pose_in_base_coordinates.q[[1, 2, 3, 0]]).as_rotvec()
+
         action[3:6] = Rotation.from_quat(quat[[1, 2, 3, 0]]).as_rotvec()
-        # print(self._elapsed_steps)
+
         # 4. check if pose is feasible by solving inverse kinematics
         if(self.agent.controller.controllers["arm"].compute_ik(pose_in_base_coordinates) is not None):
             # 5. actually move the tcp to the pose
@@ -46,14 +68,9 @@ class DataCollectionTurnFaucetEnv(VATTurnFaucetEnv):
             tcp_pose_in_base = self.agent.robot.pose.inv().transform(self.tcp.pose)
 
             # then we set the arm's joints to the correct values using inverse kinematics
-            #qpos = self.agent.controller.controllers["arm"].compute_ik(pose_in_base_coordinates)
-            #self.agent.reset(np.hstack([qpos, 0, 0]))  # the last two values are for the gripper fingers
-
             while np.linalg.norm(tcp_pose_in_base.p - pose_in_base_coordinates.p) > 0.005:
                 if counter > 10:
                     # we could not reach the position
-                    # print('truncating')
-                    #truncated = True
                     break
                 if self.agent.controller.controllers["arm"].get_IK_error():
                     print('IK error')
@@ -65,10 +82,8 @@ class DataCollectionTurnFaucetEnv(VATTurnFaucetEnv):
                 tcp_pose_in_base = self.agent.robot.pose.inv().transform(self.tcp.pose)
                 counter += 1
             # 6. add tcp pose to sequence
-            #   # I think this is already done because i add the tcp pose to the info dict
+            #    this is already done in parent class because tcp pose is added to the info dict
         else:
-            # reset environment
-            #super().reset()
             print('truncating')
             truncated = True
 
@@ -149,17 +164,18 @@ class DataCollectionTurnFaucetEnv(VATTurnFaucetEnv):
         return gripper_target_pose
 
 
+    # It would be better to use the function from the parent class here to avoid unnecessary code duplication
+    # However, we need the local coordinates of the normal at the contact point
+    # this is the only addition/difference to the parent's implementation...
     def sampleContactPoint(self):
-        # self.custom_print("sampling contact point")
-        # Calculate normals for the sampled points
-        # for most faucets y is rotation axis, and z shows in handle direction
+
         normals = self.target_link_mesh.face_normals[self.target_link_mesh.nearest.on_surface(self.target_link_pcd)[2]]
         faucet_x_local = np.array([1, 0, 0])
 
         mesh_center = self.target_link_mesh.centroid
         max_z = max(self.target_link_pcd[:, 2])
         min_y = min(self.target_link_pcd[:, 1])
-        z_threshold = 0.4 * max_z  # the larger the threshold the further the contact points will be to the tip of handle
+        z_threshold = 0.4 * max_z
 
         if self.model_id == '5005':
             z_threshold = 0.65 * max_z
@@ -175,8 +191,6 @@ class DataCollectionTurnFaucetEnv(VATTurnFaucetEnv):
             z_threshold = 0.7 * max_z
         elif self.model_id == '5053':
             z_threshold = 0.55 * max_z
-        elif self.model_id == '5049':
-            z_threshold = 0.6 * max_z
 
         # Filter points based on normals
         # Define the normal threshold to decide front or back

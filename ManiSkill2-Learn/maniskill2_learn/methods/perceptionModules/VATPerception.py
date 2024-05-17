@@ -14,6 +14,14 @@ from maniskill2_learn.utils.data import GDict
 from pytorch3d.transforms import axis_angle_to_matrix, matrix_to_quaternion
 from maniskill2_learn.utils.torch.misc import no_grad
 
+'''
+This is the class for VAT-Mart. It contains the logic for training the Trajectory Generator, Trajectory Scorer, and
+Affordance Predictor.
+
+The Trajectory Generator is trained to reconstruct the action sequence. The Pose Trajectory Generator used in captAIn,
+in contrast, is trained to reconstruct the sequence of TCP poses.
+
+'''
 
 def quaternion_to_axis_angle(quaternions: torch.Tensor) -> torch.Tensor:
     """

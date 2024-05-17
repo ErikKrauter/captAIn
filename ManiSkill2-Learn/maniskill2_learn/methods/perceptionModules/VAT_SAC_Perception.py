@@ -15,6 +15,10 @@ from maniskill2_learn.utils.data import GDict
 from pytorch3d.transforms import axis_angle_to_matrix, matrix_to_quaternion
 from maniskill2_learn.utils.torch.misc import no_grad
 
+'''
+This is the Perception Module of captAIn. It contains all the logic for training the Affordance Predictor and
+Trajectory Generator when using Continuous Learning.
+'''
 
 def quaternion_to_axis_angle(quaternions: torch.Tensor) -> torch.Tensor:
     """
@@ -150,6 +154,7 @@ class VAT_SAC_Perception(BasePerception):
 
         return trask_traj
 
+    # The trajectory has to be sub-sampled in order to recover a uniform length
     def sub_sample(self, traj):
         # traj of shape B, traj_len
         if traj.shape[1] == (3+3+self.num_steps*self.waypoint_dim):

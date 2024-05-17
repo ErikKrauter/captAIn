@@ -5,6 +5,12 @@ from sapien.core import Pose
 from transforms3d.euler import euler2quat
 from collections import OrderedDict
 from mani_skill2.utils.sapien_utils import vectorize_pose
+
+'''
+This environment was used to train the E2E SAC agent. It differs from the original TurnFaucetEnv in the way
+it defines the task/faucet angles, the success criterion, the reward formulation
+'''
+
 @register_env("E2E-TurnFaucet-v0", max_episode_steps=200, override=True)
 class E2ETurnFaucetEnv(TurnFaucetEnv):
 
@@ -19,15 +25,13 @@ class E2ETurnFaucetEnv(TurnFaucetEnv):
         self.success_threshold = np.deg2rad(5)
         self.min_task_angle_difference = np.deg2rad(min_task_angle_difference)
         self.max_task_angle_difference = np.deg2rad(max_task_angle_difference)
-        self.gripper_finger_distance_threshold = 0.3  # I believe this is in meters
+        self.gripper_finger_distance_threshold = 0.3  # in meters
         self.randomize_initial_faucet_pose = randomize_initial_faucet_pose
         self.control_mode_ = control_mode
 
         super(E2ETurnFaucetEnv, self).__init__(control_mode=control_mode, **kwargs)
 
-
-    # Here I need to specify how I define success
-    # here I can add all info to the dictionary that I want to output.
+    # defines the success criterion
     def evaluate(self, **kwargs):
         angle_dist = self.target_angle - self.current_angle
         # success either if we are close to target angle, or if angle diff has changed signs meaning we overshot

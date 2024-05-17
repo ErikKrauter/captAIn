@@ -267,7 +267,7 @@ class FastEvaluation:
     def close(self):
         self.vec_env.close()
 
-
+# This is evaluation class is used during supervised training of the perception modules
 @EVALUATIONS.register_module()
 class SupervisedEvaluation:
     def __init__(
@@ -535,6 +535,7 @@ class Evaluation:
             if self.only_save_success_traj and not self.episode_finish:
                 os.remove(self.video_file)
 
+    # Data augmentation function
     def collect_data_set(self):
         # do not collect trajectories in which the IK solver didnt find a solution
         if np.any(self.data_episode.memory['infos']['error']):
@@ -668,6 +669,7 @@ class Evaluation:
 
         self.traj_id += 1
 
+    # Here the data augmentation is triggered
     def done_VAT(self):
         self.episode_lens.append(self.episode_len)
         self.episode_rewards.append(self.episode_reward)

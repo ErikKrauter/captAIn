@@ -8,8 +8,8 @@ import time
 import warnings
 from copy import deepcopy
 from pathlib import Path
-import wandb
 import sys
+import wandb
 
 import gymnasium as gym
 import numpy as np

@@ -53,7 +53,7 @@ env_cfg=dict(
         env_name='VAT-TurnFaucet-v0', #"TurnFaucet-v0",
         obs_mode='VAT',
         ignore_dones=False,
-        # num_waypoints=6,
+        num_waypoints=8,
         control_mode='pd_ee_target_delta_pose',
         reward_mode='dense',
         obs_frame='base',
@@ -68,6 +68,7 @@ env_cfg=dict(
         max_task_angle_difference=180,
         min_task_angle_difference=30,
         randomize_initial_faucet_pose=False,
+        restrict_action_space=True,
     )
 
 eval_cfg = dict(
