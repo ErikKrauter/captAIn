@@ -234,6 +234,7 @@ in the data set. The Trajectory Generator used in VAT-Mart, on the other hand, r
 data collection agent performed. The action sequence results in the robot movement and thus in the TCP sequence, however,
 these two sequences are still distinct from one another. The Pose Trajectory Generator cannot be used for VAT-Mart and 
 the Trajectory Generator cannot be used for captAIn.
+
 ---
 ### Training the Interaction Policy
 Now the Pose Trajectory Generator and the Affordance Predictor or used inside the Perception Module of captAIn. The weights
