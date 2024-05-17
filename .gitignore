@@ -1,9 +1,7 @@
 .idea
 data/
 sbatch_log/
-Evaluation/*
 Runs/*
-!Evaluation/*.py
 Experiments/
 wandb_cache_dir/
 imgui.ini
