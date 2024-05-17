@@ -35,6 +35,11 @@ clone this repository
 git clone https://github.com/ErikKrauter/captAIn.git captAIn
 ```
 
+cd into the repo
+```bash
+cd captAIn
+```
+
 create conda environment
 
 ```bash
@@ -102,12 +107,25 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
+navigate back to main directory
+```bash
+cd ../../../../../
+```
+
 ---
 
 Test your installation. You should see a window with a scene depicting a robot and a faucet.
 
 ```bash
-python -m ManiSkill2.mani_skill2.examples.demo_random_action
+cd ManiSkill2/
+```
+
+```bash
+python -m mani_skill2.examples.demo_random_action
+```
+
+```bash
+cd ..
 ```
 
 ---
