@@ -1,6 +1,7 @@
 .idea
-data/
 sbatch_log/
+ManiSkill2/data/
+ManiSkill2-Learn/data/
 Runs/*
 Experiments/
 wandb_cache_dir/

@@ -139,10 +139,6 @@ partnet-mobility-dataset
 
 tools/docker_file/corl/
 
-data
-logging_dir
-YOUR_LOGGING_DIRECTORY
-
 # Pointnet2_PyTorch specific ignores
 maniskill2_learn/networks/backbones/Pointnet2_PyTorch/__pycache__
 maniskill2_learn/networks/backbones/Pointnet2_PyTorch/*.pth*
