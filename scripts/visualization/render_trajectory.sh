@@ -4,7 +4,7 @@
 set -e
 export PYTHONPATH=$PYTHONPATH:$(python -c 'import os; print(os.getcwd())')
 # Define the working directory
-FILE="Runs/VATMart_Inference/test/trajectory.h5"
+FILE="Runs/CaptAIn_Inference/test/trajectory.h5"
 
 # Run the training command
 python Evaluation/render_trajectories.py \

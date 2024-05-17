@@ -6,3 +6,6 @@ Runs/*
 Experiments/
 wandb_cache_dir/
 imgui.ini
+
+# Ignore all symlinks
+**/*@

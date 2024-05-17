@@ -117,15 +117,7 @@ cd ../../../../../
 Test your installation. You should see a window with a scene depicting a robot and a faucet.
 
 ```bash
-cd ManiSkill2/
-```
-
-```bash
-python -m mani_skill2.examples.demo_random_action
-```
-
-```bash
-cd ..
+python -m ManiSkill2.mani_skill2.examples.demo_random_action
 ```
 
 ---
@@ -191,6 +183,8 @@ The faucetID_HoldOutDataSet.txt and faucetOOD_HoldOutDataSet.txt are passed to t
 faucetTrainingDataSet.txt are used in the training environment.
 
 All available faucet models are contained in ManiSkill2/data
+
+---
 
 ### Train Data Collection Agent
 The full training pipeline starting from the data collection agent looks as follows. Note that this pipeline assumes you

@@ -100,14 +100,14 @@ def get_model_id_TurnFaucet(faucets):
     cwd = os.path.basename(os.getcwd())
     # print(f"current dir: {cwd}")
 
-    if cwd == "MasterThesis" or cwd == "Masterthesis":  # this is done because I named the repo MasterThesis locally and Masterthesis on remote machine
+    if cwd == "MasterThesis" or cwd == "Masterthesis" or cwd == "captAIn":  # this is done because I named the repo MasterThesis locally and Masterthesis on remote machine
         textDocPath = 'ManiSkill2/' + faucets
     elif cwd == "ManiSkill2-Learn":
         textDocPath = '../ManiSkill2/' + faucets
     elif cwd == "ManiSkill2":
         textDocPath = faucets
     else:
-        raise ValueError("you must launch the training script from MasterThesis, ManiSkill2 or ManiSkill2-Learn directory")
+        raise ValueError("you must launch the training script from the captAIn directory, ManiSkill2 or ManiSkill2-Learn directory")
     # print(f"faucets: {faucets}")
     # print(f"textDocPatch: {textDocPath}")
     # Read text file

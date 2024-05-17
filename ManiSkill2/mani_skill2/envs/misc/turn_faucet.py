@@ -139,7 +139,7 @@ class TurnFaucetEnv(TurnFaucetBaseEnv):
         # I want self.asset_root be ManiSkill2/data/partnet_mobility/dataset if my current working directory is
         # MasterThesis
         current_dir = os.path.basename(os.getcwd())
-        if current_dir == "MasterThesis" or current_dir == "Masterthesis":
+        if current_dir == "MasterThesis" or current_dir == "Masterthesis" or current_dir == "captAIn":
             self.asset_root = Path.joinpath(Path("ManiSkill2"), self.asset_root)
 
         # print(f"asset_root {self.asset_root}")

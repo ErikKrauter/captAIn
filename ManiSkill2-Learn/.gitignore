@@ -134,6 +134,9 @@ workspace.code-workspace
 **/build/
 wandb/
 
+# Ignore all symlinks
+**/*@
+
 tools/torchsparse/
 partnet-mobility-dataset
 
