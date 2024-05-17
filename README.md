@@ -29,6 +29,11 @@ Also miniconda is used to manage the virtual environment with all it's packages.
 
 The following installation process assumes the above dependencies to be met.
 
+clone this repository
+
+```bash
+git clone https://github.com/ErikKrauter/captAIn.git captAIn
+```
 
 create conda environment
 
