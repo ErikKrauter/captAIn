@@ -1,7 +1,7 @@
 # captAIn
 **C**losed-loop **A**ffordance **P**rediction and **T**rajectory Generation for **A**daptive **I**nteraction with **N**ovel Objects
 
-This is repository contains all the code used for my Master's Thesis on "Visual Reinforcement Learning for Generalizable Object Manipulation".
+This repository contains all the code used for my Master's Thesis on "Visual Reinforcement Learning for Generalizable Object Manipulation".
 It implements the proposed method called captAIn, as well as all baselines used in the thesis.
 
 ![Model Lineage](images/robot_faucet.png)
