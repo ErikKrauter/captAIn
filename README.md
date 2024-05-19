@@ -356,9 +356,9 @@ in the scripts for launching trainings. The parameters are then used during the 
 
 The code for collecting and augmenting datasets can be found in ManiSkill2-Learn/maniskill2_learn/env/evaluation.py
 
-The code of captAIn is under ManiSkill2-Learn/maniskill2_learn/methods/mfrl/vat_sac.py ManiSkill2-Learn/maniskill2_learn/methods/perceptionModules and ManiSkill2-Learn/maniskill2_learn/networks/applications/vat_modules.py 
+The code of captAIn is under ManiSkill2-Learn/maniskill2_learn/methods/mfrl/vat_sac.py  
 
-All the code related to the Perception Modules and VAT-Mart is located under 
+All the code related to the Perception Modules and VAT-Mart is located under ManiSkill2-Learn/maniskill2_learn/methods/perceptionModules and ManiSkill2-Learn/maniskill2_learn/networks/applications/vat_modules.py
 
 The PointNet++ backbone can be found under ManiSkill2-Learn/maniskill2_learn/networks/backbones/pointnet_2.py
 
